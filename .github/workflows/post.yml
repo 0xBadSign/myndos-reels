@@ -1,0 +1,44 @@
+# Posts the next reel of each app. Runs daily; can also be started by hand (check / post / dry).
+name: Post
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "check | post | dry"
+        required: true
+        default: check
+  # schedule:
+  #   - cron: "0 16 * * *"   # 16:00 UTC: US morning, Europe evening
+
+permissions:
+  contents: write
+
+concurrency: post
+
+jobs:
+  tolk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IG_ACCESS_TOKEN: ${{ secrets.TOLK_IG_TOKEN }}
+      IG_USER_ID: "17841429640015233"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check
+        if: github.event_name == 'workflow_dispatch' && inputs.command == 'check'
+        run: python3 tools/ig.py check
+      - name: Dry run
+        if: github.event_name == 'workflow_dispatch' && inputs.command == 'dry'
+        run: python3 tools/ig.py post tolk --dry
+      - name: Post
+        if: github.event_name == 'schedule' || inputs.command == 'post'
+        run: |
+          python3 tools/ig.py post tolk
+          if ! git diff --quiet; then
+            git config user.name "myndos-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add tolk/posted.txt
+            git commit -m "tolk: posted $(tail -n1 tolk/posted.txt)"
+            git push
+          fi
