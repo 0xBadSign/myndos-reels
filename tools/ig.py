@@ -16,9 +16,12 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-TOKEN = os.environ.get("IG_ACCESS_TOKEN", "")
-USER_ID = os.environ.get("IG_USER_ID", "")
-BASE = "https://graph.instagram.com/v23.0"
+TOKEN = os.environ.get("IG_ACCESS_TOKEN", "").strip()
+USER_ID = os.environ.get("IG_USER_ID", "").strip()
+# Instagram Login tokens start with "IG" and use graph.instagram.com; Facebook Login for Business
+# (system-user) tokens use graph.facebook.com. The publishing calls are the same on both.
+INSTAGRAM_LOGIN = TOKEN.startswith("IG")
+BASE = "https://graph.instagram.com/v23.0" if INSTAGRAM_LOGIN else "https://graph.facebook.com/v23.0"
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -43,10 +46,16 @@ def call(method, path, **params):
 def check():
     if not TOKEN:
         raise SystemExit("IG_ACCESS_TOKEN is empty")
-    me = call("GET", "me", fields="user_id,username,account_type,media_count")
-    print("account:", me.get("username"), "| type:", me.get("account_type"), "| media:", me.get("media_count"), "| id:", me.get("user_id"))
-    if USER_ID and str(me.get("user_id")) != USER_ID:
-        print("note: IG_USER_ID differs from the token's account:", me.get("user_id"))
+    print("token kind:", "Instagram Login" if INSTAGRAM_LOGIN else "Facebook Login / system user", "| length", len(TOKEN))
+    if INSTAGRAM_LOGIN:
+        me = call("GET", "me", fields="user_id,username,account_type,media_count")
+        print("account:", me.get("username"), "| type:", me.get("account_type"), "| media:", me.get("media_count"), "| id:", me.get("user_id"))
+        if USER_ID and str(me.get("user_id")) != USER_ID:
+            print("note: IG_USER_ID differs from the token's account:", me.get("user_id"))
+    else:
+        me = call("GET", USER_ID, fields="username,media_count")
+        print("account:", me.get("username"), "| media:", me.get("media_count"), "| id:", USER_ID)
+        return
     # A long-lived Instagram Login token lasts 60 days and can be refreshed; a system-user token never expires.
     try:
         r = call("GET", "https://graph.instagram.com/refresh_access_token", grant_type="ig_refresh_token")
