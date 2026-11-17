@@ -56,20 +56,6 @@ class ApiError(Exception):
         return self.code in SKIP_CODES or self.subcode in SKIP_SUBCODES
 
 
-def dm_sender():
-    """Where private replies are sent from. Instagram Login: the Instagram account itself.
-    Facebook Login: the Facebook Page linked to the Instagram account, with that Page's token."""
-    if ig.INSTAGRAM_LOGIN:
-        return ig.USER_ID, None
-    pages = ig.call("GET", "me/accounts", fields="id,access_token,instagram_business_account", limit=100).get("data", [])
-    for p in pages:
-        if str((p.get("instagram_business_account") or {}).get("id")) == ig.USER_ID:
-            return p["id"], p.get("access_token")
-    # A system-user token may not list Pages; try the Instagram account id directly.
-    print(f"note: no linked Page visible ({len(pages)} pages listed), sending from the Instagram account id")
-    return ig.USER_ID, None
-
-
 def parse_time(s):
     # Instagram returns e.g. 2026-11-17T09:00:00+0000 (no colon in the offset)
     return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S%z")
@@ -107,7 +93,6 @@ def run(app, dry=False):
     media = [m for m in ig.call("GET", f"{ig.USER_ID}/media", fields="id,timestamp,permalink", limit=15).get("data", [])
              if parse_time(m["timestamp"]) >= cutoff]
 
-    sender, sender_token = (None, None) if dry else dm_sender()
     checked = found = sent = skipped = 0
     for m in media:
         checked += 1
@@ -128,7 +113,7 @@ def run(app, dry=False):
                 skipped += 1
                 continue
             try:
-                post_json(f"{sender}/messages", {"recipient": {"comment_id": cid}, "message": {"text": text}}, sender_token)
+                post_json(f"{ig.USER_ID}/messages", {"recipient": {"comment_id": cid}, "message": {"text": text}})
             except ApiError as e:
                 print(f"DM failed for comment {cid}: {e}")
                 if e.permanent():
