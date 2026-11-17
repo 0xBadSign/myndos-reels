@@ -65,7 +65,9 @@ def dm_sender():
     for p in pages:
         if str((p.get("instagram_business_account") or {}).get("id")) == ig.USER_ID:
             return p["id"], p.get("access_token")
-    raise SystemExit("no Facebook Page linked to this Instagram account is visible to the token")
+    # A system-user token may not list Pages; try the Instagram account id directly.
+    print(f"note: no linked Page visible ({len(pages)} pages listed), sending from the Instagram account id")
+    return ig.USER_ID, None
 
 
 def parse_time(s):
