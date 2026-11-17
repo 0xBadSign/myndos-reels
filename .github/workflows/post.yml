@@ -9,7 +9,11 @@ on:
         required: true
         default: check
   schedule:
-    - cron: "0 16 * * *"   # 16:00 UTC = 19:00 Istanbul: US morning, Europe evening
+    # 16:00 UTC = 19:00 Istanbul: US morning, Europe evening. Off the hour, since GitHub drops
+    # scheduled runs at busy times; the later times are fallbacks (ig.py skips if already posted).
+    - cron: "11 16 * * *"
+    - cron: "41 17 * * *"
+    - cron: "17 19 * * *"
 
 permissions:
   contents: write
