@@ -27,17 +27,19 @@ SKIP_CODES = {551}
 SKIP_SUBCODES = {2534022, 2534014, 2534023, 2018001, 2018108}
 
 
-def post_json(path, body):
+def post_json(path, body, token=None):
+    token = token or ig.TOKEN
     url = f"{ig.BASE}/{path}"
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST", headers={
-        "Authorization": f"Bearer {ig.TOKEN}", "Content-Type": "application/json"})
+        "Authorization": f"Bearer {token}", "Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
         raw = e.read().decode()
-        if ig.TOKEN:
-            raw = raw.replace(ig.TOKEN, "***")
+        for t in (ig.TOKEN, token):
+            if t:
+                raw = raw.replace(t, "***")
         try:
             err = json.loads(raw).get("error", {})
         except ValueError:
@@ -52,6 +54,18 @@ class ApiError(Exception):
 
     def permanent(self):
         return self.code in SKIP_CODES or self.subcode in SKIP_SUBCODES
+
+
+def dm_sender():
+    """Where private replies are sent from. Instagram Login: the Instagram account itself.
+    Facebook Login: the Facebook Page linked to the Instagram account, with that Page's token."""
+    if ig.INSTAGRAM_LOGIN:
+        return ig.USER_ID, None
+    pages = ig.call("GET", "me/accounts", fields="id,access_token,instagram_business_account", limit=100).get("data", [])
+    for p in pages:
+        if str((p.get("instagram_business_account") or {}).get("id")) == ig.USER_ID:
+            return p["id"], p.get("access_token")
+    raise SystemExit("no Facebook Page linked to this Instagram account is visible to the token")
 
 
 def parse_time(s):
@@ -91,6 +105,7 @@ def run(app, dry=False):
     media = [m for m in ig.call("GET", f"{ig.USER_ID}/media", fields="id,timestamp,permalink", limit=15).get("data", [])
              if parse_time(m["timestamp"]) >= cutoff]
 
+    sender, sender_token = (None, None) if dry else dm_sender()
     checked = found = sent = skipped = 0
     for m in media:
         checked += 1
@@ -111,7 +126,7 @@ def run(app, dry=False):
                 skipped += 1
                 continue
             try:
-                post_json(f"{ig.USER_ID}/messages", {"recipient": {"comment_id": cid}, "message": {"text": text}})
+                post_json(f"{sender}/messages", {"recipient": {"comment_id": cid}, "message": {"text": text}}, sender_token)
             except ApiError as e:
                 print(f"DM failed for comment {cid}: {e}")
                 if e.permanent():
