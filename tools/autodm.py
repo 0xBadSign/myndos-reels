@@ -85,7 +85,7 @@ def run(app, dry=False):
     sent_file = ig.ROOT / app / "dm_sent.txt"
     done = {l.split()[0] for l in sent_file.read_text(encoding="utf-8").splitlines() if l.strip()} if sent_file.exists() else set()
 
-    me = ig.call("GET", "me", fields="username")
+    me = ig.call("GET", ig.USER_ID, fields="username")  # works with both Instagram and Facebook Login tokens
     own_name = (me.get("username") or "").lower()
     cutoff = datetime.now(timezone.utc) - MAX_AGE
     media = [m for m in ig.call("GET", f"{ig.USER_ID}/media", fields="id,timestamp,permalink", limit=15).get("data", [])
