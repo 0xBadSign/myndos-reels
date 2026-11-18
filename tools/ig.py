@@ -93,7 +93,7 @@ def post(app, dry=False):
         raise SystemExit("IG_ACCESS_TOKEN / IG_USER_ID missing")
     # The schedule fires more than once a day as a fallback, because GitHub drops scheduled runs.
     # A scheduled run posts only if nothing was posted in the last 20 hours.
-    if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+    if os.environ.get("POST_GUARD") == "1" or os.environ.get("GITHUB_EVENT_NAME") == "schedule":
         from datetime import datetime, timedelta, timezone
         last = call("GET", f"{USER_ID}/media", fields="timestamp", limit=1).get("data", [])
         if last and datetime.now(timezone.utc) - datetime.strptime(last[0]["timestamp"], "%Y-%m-%dT%H:%M:%S%z") < timedelta(hours=20):

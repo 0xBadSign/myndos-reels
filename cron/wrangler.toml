@@ -1,0 +1,11 @@
+# Reliable clock for the GitHub workflows: GitHub drops most scheduled runs on this repo,
+# so this Worker starts them through the workflow_dispatch API instead.
+# Secret: GH_TOKEN, a fine-grained GitHub token for 0xBadSign/myndos-reels with Actions: Read and write.
+name = "myndos-reels-cron"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = false
+
+[triggers]
+# 16:11 UTC = 19:11 Istanbul: post the next reel. Every 15 minutes: auto DM.
+crons = ["11 16 * * *", "*/15 * * * *"]

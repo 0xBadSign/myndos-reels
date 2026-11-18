@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: "check | post | dry"
+        description: "check | post | dry | daily (daily = post unless one went out in the last 20 hours; used by the cron Worker)"
         required: true
         default: check
   schedule:
@@ -36,7 +36,9 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.command == 'dry'
         run: python3 tools/ig.py post tolk --dry
       - name: Post
-        if: github.event_name == 'schedule' || inputs.command == 'post'
+        if: github.event_name == 'schedule' || inputs.command == 'post' || inputs.command == 'daily'
+        env:
+          POST_GUARD: ${{ (github.event_name == 'schedule' || inputs.command == 'daily') && '1' || '' }}
         run: |
           python3 tools/ig.py post tolk
           if [ -n "$(git status --porcelain tolk/posted.txt)" ]; then
