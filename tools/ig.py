@@ -96,13 +96,32 @@ def post(app, dry=False):
     # A scheduled run posts only if nothing was posted in the last 20 hours.
     if os.environ.get("POST_GUARD") == "1" or os.environ.get("GITHUB_EVENT_NAME") == "schedule":
         from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        times = []
+        # Trial reels may not show in the media list, so the time of our own last post is kept in the repo too.
+        stamp = ROOT / app / "last_posted_at.txt"
+        if stamp.exists():
+            times.append(datetime.fromtimestamp(int(stamp.read_text().strip()), timezone.utc))
         last = call("GET", f"{USER_ID}/media", fields="timestamp", limit=1).get("data", [])
-        if last and datetime.now(timezone.utc) - datetime.strptime(last[0]["timestamp"], "%Y-%m-%dT%H:%M:%S%z") < timedelta(hours=20):
+        if last:
+            times.append(datetime.strptime(last[0]["timestamp"], "%Y-%m-%dT%H:%M:%S%z"))
+        if times and now - max(times) < timedelta(hours=20):
             print(f"{app}: posted less than 20 hours ago, skipping this scheduled run")
             return
 
-    container = call("POST", f"{USER_ID}/media", media_type="REELS", video_url=video_url, caption=caption,
-                     share_to_feed="true")["id"]
+    # Trial reels go to non-followers first; Instagram shares them to followers on its own when they do well
+    # (graduation_strategy SS_PERFORMANCE). IG_TRIAL=0 turns this off. If the API refuses the trial, post a normal reel.
+    params = dict(media_type="REELS", video_url=video_url, caption=caption)
+    container = None
+    if os.environ.get("IG_TRIAL", "1") != "0":
+        try:
+            container = call("POST", f"{USER_ID}/media", trial_params=json.dumps({"graduation_strategy": "SS_PERFORMANCE"}),
+                             **params)["id"]
+            print(f"{app}: trial reel container {container}")
+        except SystemExit as e:
+            print(f"{app}: trial reel refused, posting a normal reel instead: {str(e)[:300]}")
+    if container is None:
+        container = call("POST", f"{USER_ID}/media", share_to_feed="true", **params)["id"]
     for _ in range(60):  # up to 10 minutes
         time.sleep(10)
         status = call("GET", container, fields="status_code,status")
@@ -117,6 +136,7 @@ def post(app, dry=False):
     print(f"{app}: published media {media}")
     with posted_file.open("a", encoding="utf-8") as f:
         f.write(video.stem + "\n")
+    (ROOT / app / "last_posted_at.txt").write_text(str(int(time.time())) + "\n")
 
 
 def stats():
@@ -126,19 +146,24 @@ def stats():
     print(f"account: {me.get('username')} | followers: {me.get('followers_count')} | media: {me.get('media_count')}")
     media = call("GET", f"{USER_ID}/media", fields="id,caption,timestamp,media_product_type,like_count,comments_count", limit=50).get("data", [])
     print("date        views   reach  likes  comm  share  saved  avg_watch_s  caption")
+    insight_error = ""
     for m in media:
         vals = {}
         for metric in ("views", "reach", "shares", "saved", "ig_reels_avg_watch_time"):
             try:
                 r = call("GET", f"{m['id']}/insights", metric=metric)
                 vals[metric] = r["data"][0]["values"][0]["value"]
-            except SystemExit:
+            except SystemExit as e:
                 vals[metric] = "-"
+                if not insight_error:
+                    insight_error = str(e)[:300]
         watch = vals["ig_reels_avg_watch_time"]
         watch = f"{watch / 1000:.1f}" if isinstance(watch, (int, float)) else "-"
         cap = (m.get("caption") or "").splitlines()[0][:50] if m.get("caption") else ""
         print(f"{m['timestamp'][:10]}  {vals['views']!s:>6}  {vals['reach']!s:>6}  {m.get('like_count', 0):>5}  {m.get('comments_count', 0):>4}  "
               f"{vals['shares']!s:>5}  {vals['saved']!s:>5}  {watch:>11}  {cap}")
+    if insight_error:
+        print("first insights error:", insight_error)
 
 
 if __name__ == "__main__":
