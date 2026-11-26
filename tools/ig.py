@@ -3,6 +3,7 @@
   python tools/ig.py check            account name and token lifetime
   python tools/ig.py post <app>       publish the oldest unposted reel in <app>/queue
   python tools/ig.py post <app> --dry show what would be posted
+  python tools/ig.py stats            followers and per-reel views, reach, likes, comments, shares, saves
 
 Env: IG_ACCESS_TOKEN, IG_USER_ID, GITHUB_REPOSITORY, GITHUB_SHA (set by Actions).
 Videos are served to Instagram from this public repository through jsDelivr, pinned to the commit.
@@ -118,10 +119,34 @@ def post(app, dry=False):
         f.write(video.stem + "\n")
 
 
+def stats():
+    if not TOKEN or not USER_ID:
+        raise SystemExit("IG_ACCESS_TOKEN / IG_USER_ID missing")
+    me = call("GET", USER_ID, fields="username,followers_count,media_count")
+    print(f"account: {me.get('username')} | followers: {me.get('followers_count')} | media: {me.get('media_count')}")
+    media = call("GET", f"{USER_ID}/media", fields="id,caption,timestamp,media_product_type,like_count,comments_count", limit=50).get("data", [])
+    print("date        views   reach  likes  comm  share  saved  avg_watch_s  caption")
+    for m in media:
+        vals = {}
+        for metric in ("views", "reach", "shares", "saved", "ig_reels_avg_watch_time"):
+            try:
+                r = call("GET", f"{m['id']}/insights", metric=metric)
+                vals[metric] = r["data"][0]["values"][0]["value"]
+            except SystemExit:
+                vals[metric] = "-"
+        watch = vals["ig_reels_avg_watch_time"]
+        watch = f"{watch / 1000:.1f}" if isinstance(watch, (int, float)) else "-"
+        cap = (m.get("caption") or "").splitlines()[0][:50] if m.get("caption") else ""
+        print(f"{m['timestamp'][:10]}  {vals['views']!s:>6}  {vals['reach']!s:>6}  {m.get('like_count', 0):>5}  {m.get('comments_count', 0):>4}  "
+              f"{vals['shares']!s:>5}  {vals['saved']!s:>5}  {watch:>11}  {cap}")
+
+
 if __name__ == "__main__":
     args = sys.argv[1:] or ["check"]
     if args[0] == "check":
         check()
+    elif args[0] == "stats":
+        stats()
     elif args[0] == "post" and len(args) >= 2:
         post(args[1], dry="--dry" in args)
     else:
