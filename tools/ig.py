@@ -56,6 +56,11 @@ def check():
     else:
         me = call("GET", USER_ID, fields="username,media_count")
         print("account:", me.get("username"), "| media:", me.get("media_count"), "| id:", USER_ID)
+        try:
+            perms = call("GET", "me/permissions").get("data", [])
+            print("permissions:", ", ".join(p["permission"] for p in perms if p.get("status") == "granted") or "(none listed)")
+        except SystemExit as e:
+            print("permissions not readable:", str(e)[:200])
         return
     # A long-lived Instagram Login token lasts 60 days and can be refreshed; a system-user token never expires.
     try:
