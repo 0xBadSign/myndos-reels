@@ -84,9 +84,7 @@ def tiktok_caption(video):
     # Instagram-only calls to action make no sense here.
     lines = [l for l in text.splitlines()
              if not any(k in l for k in ("DM", "Yoruma TOLK yaz", "link in bio", "profilde"))]
-    suffix = "
-
-0001F4F2 APP STORE'DA \"TOLK\" DIYE ARAT."
+    suffix = "\n\n\U0001F4F2 App Store'da \"Tolk\" diye arat."
     body = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
     return body[:2200 - len(suffix)].rstrip() + suffix
 
