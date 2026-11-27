@@ -13,3 +13,15 @@ Footage is reused under the licenses named in each caption (CC BY / CC0 via Wiki
     python tools/make_reels.py --only <name> --variants 3
 
 Processed clips move to `tolk/raw/done/`. Needs ffmpeg/ffprobe on PATH and the Windows font Segoe UI Black.
+
+## TikTok
+
+`tools/tiktok.py` posts the oldest video not in `<app>/posted_tiktok.txt` through TikTok's Content Posting API, using the "Myndos Publisher" developer app (one connected account per product). The Worker in `cron/` keeps the OAuth tokens in KV and starts `tiktok.yml` daily after `post.yml`. One-time setup:
+
+1. `cd cron && wrangler kv namespace create TOKENS`, paste the id into `wrangler.toml`.
+2. `wrangler secret put TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` and `PUBLISHER_KEY` (any long random string).
+3. Set the repo secret `PUBLISHER_KEY` to the same value. Optional repo variables: `TIKTOK_MODE`, `TIKTOK_PRIVACY`.
+4. `wrangler deploy`, then open `https://myndos.studio/publisher/tiktok/login?account=tolk` while signed in to the Tolk TikTok account.
+5. Run the TikTok workflow with `check`, then `dry`.
+
+Modes (`TIKTOK_MODE`): `inbox` (default) uploads a draft to the creator's TikTok inbox and you finish it in the app. `direct` posts by itself with `TIKTOK_PRIVACY` (default `SELF_ONLY`); it needs TikTok's app audit, and until then every direct post is private.

@@ -1,11 +1,21 @@
 # Reliable clock for the GitHub workflows: GitHub drops most scheduled runs on this repo,
 # so this Worker starts them through the workflow_dispatch API instead.
 # Secret: GH_TOKEN, a fine-grained GitHub token for 0xBadSign/myndos-reels with Actions: Read and write.
+# TikTok publisher (route below) secrets: TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, PUBLISHER_KEY
+# (PUBLISHER_KEY is shared with GitHub Actions as the repo secret of the same name). Set each with:
+#   wrangler secret put <NAME>
 name = "myndos-reels-cron"
 main = "worker.js"
 compatibility_date = "2026-11-01"
 workers_dev = false
+routes = [{ pattern = "myndos.studio/publisher/tiktok/*", zone_name = "myndos.studio" }]
 
 [triggers]
 # 16:11 UTC = 19:11 Istanbul: post the next reel. Every 15 minutes: auto DM.
 crons = ["11 16 * * *", "*/15 * * * *"]
+
+# Tokens of the connected TikTok accounts. Create it once and paste the id below:
+#   wrangler kv namespace create TOKENS
+[[kv_namespaces]]
+binding = "TOKENS"
+id = "REPLACE_WITH_KV_ID"
