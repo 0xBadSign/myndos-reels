@@ -28,7 +28,7 @@ _secrets = []  # token values to redact from any error text
 
 
 def http(method, url, body=None, headers=None, raw=False):
-    req = urllib.request.Request(url, data=body, method=method, headers=headers or {})
+    req = urllib.request.Request(url, data=body, method=method, headers={"User-Agent": "myndos-publisher/1.0", **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=300) as r:
             data = r.read()
